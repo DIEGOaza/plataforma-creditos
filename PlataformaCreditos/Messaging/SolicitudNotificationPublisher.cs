@@ -7,7 +7,7 @@ namespace PlataformaCreditos.Messaging;
 
 public interface ISolicitudNotificationPublisher
 {
-    Task PublishAsync(
+    Task<bool> PublishAsync(
         SolicitudCredito solicitud,
         string usuarioId,
         CancellationToken cancellationToken = default);
@@ -27,7 +27,7 @@ public sealed class SolicitudNotificationPublisher : ISolicitudNotificationPubli
         _options = options;
     }
 
-    public async Task PublishAsync(
+    public async Task<bool> PublishAsync(
         SolicitudCredito solicitud,
         string usuarioId,
         CancellationToken cancellationToken = default)
@@ -50,6 +50,11 @@ public sealed class SolicitudNotificationPublisher : ISolicitudNotificationPubli
 
         await using var connection = await _connectionFactory
             .CreateConnectionAsync(cancellationToken);
+        if (connection is null)
+        {
+            return false;
+        }
+
         await using var channel = await connection.CreateChannelAsync(
             cancellationToken: cancellationToken);
 
@@ -78,5 +83,6 @@ public sealed class SolicitudNotificationPublisher : ISolicitudNotificationPubli
             basicProperties: properties,
             body,
             cancellationToken: cancellationToken);
+        return true;
     }
 }

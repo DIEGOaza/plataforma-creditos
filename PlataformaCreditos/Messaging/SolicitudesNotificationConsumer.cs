@@ -36,7 +36,12 @@ public sealed class SolicitudesNotificationConsumer : BackgroundService
         {
             try
             {
-                await ConsumirAsync(stoppingToken);
+                var debeContinuar = await ConsumirAsync(stoppingToken);
+                if (!debeContinuar)
+                {
+                    break;
+                }
+
                 if (!stoppingToken.IsCancellationRequested)
                 {
                     await EsperarReintentoAsync(stoppingToken);
@@ -45,6 +50,13 @@ public sealed class SolicitudesNotificationConsumer : BackgroundService
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
+            }
+            catch (RabbitMqRetryableException exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "RabbitMQ/CloudAMQP no está disponible. Se reintentará más tarde.");
+                await EsperarReintentoAsync(stoppingToken);
             }
             catch (Exception exception)
             {
@@ -56,10 +68,15 @@ public sealed class SolicitudesNotificationConsumer : BackgroundService
         }
     }
 
-    private async Task ConsumirAsync(CancellationToken stoppingToken)
+    private async Task<bool> ConsumirAsync(CancellationToken stoppingToken)
     {
         await using var connection = await _connectionFactory
             .CreateConnectionAsync(stoppingToken);
+        if (connection is null)
+        {
+            return false;
+        }
+
         await using var channel = await connection.CreateChannelAsync(
             cancellationToken: stoppingToken);
 
@@ -105,6 +122,7 @@ public sealed class SolicitudesNotificationConsumer : BackgroundService
         using var cancellationRegistration = stoppingToken.Register(
             () => shutdown.TrySetCanceled(stoppingToken));
         await shutdown.Task;
+        return true;
     }
 
     private async Task ProcesarMensajeAsync(

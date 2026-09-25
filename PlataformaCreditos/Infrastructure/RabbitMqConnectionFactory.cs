@@ -1,23 +1,39 @@
 using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 
 namespace PlataformaCreditos.Infrastructure;
 
 public interface IRabbitMqConnectionFactory
 {
-    Task<IConnection> CreateConnectionAsync(CancellationToken cancellationToken);
+    Task<IConnection?> CreateConnectionAsync(CancellationToken cancellationToken);
+}
+
+public sealed class RabbitMqRetryableException : Exception
+{
+    public RabbitMqRetryableException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }
 
 public sealed class RabbitMqConnectionFactory : IRabbitMqConnectionFactory
 {
-    private readonly IConfiguration _configuration;
+    private const string ConfiguracionCloudAmqpMessage =
+        "RabbitMQ/CloudAMQP no está configurado. Configura la URL de CloudAMQP en appsettings.Development.json.";
 
-    public RabbitMqConnectionFactory(IConfiguration configuration)
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<RabbitMqConnectionFactory> _logger;
+
+    public RabbitMqConnectionFactory(
+        IConfiguration configuration,
+        ILogger<RabbitMqConnectionFactory> logger)
     {
         _configuration = configuration;
+        _logger = logger;
     }
 
-    public Task<IConnection> CreateConnectionAsync(CancellationToken cancellationToken)
+    public async Task<IConnection?> CreateConnectionAsync(CancellationToken cancellationToken)
     {
         var connectionString = _configuration["RabbitMq:ConnectionString"];
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -25,10 +41,11 @@ public sealed class RabbitMqConnectionFactory : IRabbitMqConnectionFactory
             connectionString = _configuration.GetConnectionString("RabbitMq");
         }
 
-        if (string.IsNullOrWhiteSpace(connectionString))
+        if (string.IsNullOrWhiteSpace(connectionString) ||
+            ContieneValorMarcador(connectionString))
         {
-            throw new InvalidOperationException(
-                "RabbitMQ no está configurado. Define RabbitMq:ConnectionString o ConnectionStrings:RabbitMq.");
+            _logger.LogWarning(ConfiguracionCloudAmqpMessage);
+            return null;
         }
 
         Uri connectionUri;
@@ -38,31 +55,50 @@ public sealed class RabbitMqConnectionFactory : IRabbitMqConnectionFactory
         }
         catch (UriFormatException exception)
         {
-            throw new InvalidOperationException(
-                "RabbitMq:ConnectionString no contiene una URI válida.",
-                exception);
+            _logger.LogWarning(
+                exception,
+                "RabbitMq:ConnectionString no contiene una URI válida. Configura la URL de CloudAMQP en appsettings.Development.json.");
+            return null;
         }
 
         if (!string.Equals(
                 connectionUri.Scheme,
                 "amqps",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException(
-                "RabbitMq:ConnectionString debe utilizar el esquema AMQPS.");
-        }
-
-        if (string.Equals(connectionUri.Host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(connectionUri.Host, "localhost", StringComparison.OrdinalIgnoreCase) ||
             connectionUri.IsLoopback)
         {
-            throw new InvalidOperationException(
-                "RabbitMq:ConnectionString no puede apuntar a localhost ni a una dirección loopback.");
+            _logger.LogWarning(ConfiguracionCloudAmqpMessage);
+            return null;
         }
 
-        var factory = new ConnectionFactory() { Uri = new Uri(connectionString) };
-        factory.AutomaticRecoveryEnabled = true;
-        factory.TopologyRecoveryEnabled = true;
+        try
+        {
+            var factory = new ConnectionFactory() { Uri = new Uri(connectionString) };
+            factory.AutomaticRecoveryEnabled = true;
+            factory.TopologyRecoveryEnabled = true;
 
-        return factory.CreateConnectionAsync("plataforma-creditos", cancellationToken);
+            return await factory.CreateConnectionAsync(
+                "plataforma-creditos",
+                cancellationToken);
+        }
+        catch (BrokerUnreachableException exception)
+        {
+            _logger.LogError(
+                exception,
+                "No fue posible conectar con RabbitMQ/CloudAMQP. Se reintentará la conexión.");
+            throw new RabbitMqRetryableException(
+                "No fue posible conectar con RabbitMQ/CloudAMQP.",
+                exception);
+        }
+    }
+
+    private static bool ContieneValorMarcador(string connectionString)
+    {
+        return connectionString.Contains("amqp.cloudamqp.com", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("TU_USUARIO", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("TU_PASSWORD", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("TU_VHOST", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("localhost", StringComparison.OrdinalIgnoreCase);
     }
 }
