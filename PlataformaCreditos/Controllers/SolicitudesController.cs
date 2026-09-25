@@ -164,10 +164,15 @@ public class SolicitudesController : Controller
         {
             try
             {
-                await _notificationPublisher.PublishAsync(
+                var published = await _notificationPublisher.PublishAsync(
                     solicitud,
                     usuarioId,
                     HttpContext.RequestAborted);
+                if (!published)
+                {
+                    TempData["MensajeAdvertencia"] =
+                        "La solicitud se registró, pero la notificación en la cola no pudo publicarse.";
+                }
             }
             catch (Exception exception)
             {
