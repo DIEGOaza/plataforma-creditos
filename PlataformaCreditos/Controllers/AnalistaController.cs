@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Distributed;
 using PlataformaCreditos.Data;
+using PlataformaCreditos.Hubs;
 using PlataformaCreditos.Infrastructure;
 using PlataformaCreditos.Models;
 
@@ -13,13 +15,16 @@ public class AnalistaController : Controller
 {
     private readonly ApplicationDbContext _context;
     private readonly IDistributedCache _cache;
+    private readonly IHubContext<SolicitudesHub> _hubContext;
 
     public AnalistaController(
         ApplicationDbContext context,
-        IDistributedCache cache)
+        IDistributedCache cache,
+        IHubContext<SolicitudesHub> hubContext)
     {
         _context = context;
         _cache = cache;
+        _hubContext = hubContext;
     }
 
     [HttpGet]
@@ -68,6 +73,7 @@ public class AnalistaController : Controller
         solicitud.MotivoRechazo = null;
         await _context.SaveChangesAsync();
         await InvalidarCacheListadoAsync();
+        await NotificarEstadoActualizadoAsync(solicitud);
 
         TempData["MensajeExito"] = "La solicitud fue aprobada correctamente.";
         return RedirectToAction(nameof(Index));
@@ -116,6 +122,7 @@ public class AnalistaController : Controller
         solicitud.MotivoRechazo = modelo.MotivoRechazo!.Trim();
         await _context.SaveChangesAsync();
         await InvalidarCacheListadoAsync();
+        await NotificarEstadoActualizadoAsync(solicitud);
 
         TempData["MensajeExito"] = "La solicitud fue rechazada correctamente.";
         return RedirectToAction(nameof(Index));
@@ -130,6 +137,20 @@ public class AnalistaController : Controller
                 solicitud.Id == id &&
                 solicitud.Estado == EstadoSolicitud.Pendiente &&
                 solicitud.Cliente != null);
+    }
+
+    private Task NotificarEstadoActualizadoAsync(SolicitudCredito solicitud)
+    {
+        var notificacion = new SolicitudEstadoActualizadoNotification(
+            solicitud.Id,
+            solicitud.Estado.ToString(),
+            solicitud.MotivoRechazo,
+            solicitud.MontoSolicitado,
+            solicitud.FechaSolicitud);
+
+        return _hubContext.Clients
+            .Group(SolicitudesHub.GrupoUsuario(solicitud.Cliente!.UsuarioId))
+            .SendAsync("SolicitudEstadoActualizado", notificacion);
     }
 
     private async Task InvalidarCacheListadoAsync()
