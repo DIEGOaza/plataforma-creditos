@@ -41,7 +41,10 @@ var rabbitMqOptions = RabbitMqOptions.FromConfiguration(builder.Configuration);
 builder.Services.AddSingleton(rabbitMqOptions);
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<ISolicitudNotificationPublisher, SolicitudNotificationPublisher>();
-builder.Services.AddHostedService<SolicitudesNotificationConsumer>();
+if (rabbitMqOptions.ConsumerEnabled)
+{
+    builder.Services.AddHostedService<SolicitudesNotificationConsumer>();
+}
 
 builder.Services.AddControllersWithViews();
 
