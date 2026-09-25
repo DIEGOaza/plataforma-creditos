@@ -37,7 +37,7 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddSignalR();
 
-var rabbitMqOptions = RabbitMqOptions.FromEnvironment();
+var rabbitMqOptions = RabbitMqOptions.FromConfiguration(builder.Configuration);
 builder.Services.AddSingleton(rabbitMqOptions);
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<ISolicitudNotificationPublisher, SolicitudNotificationPublisher>();
