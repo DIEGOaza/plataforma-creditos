@@ -3,12 +3,20 @@
     ViewData["Title"] = "Mis solicitudes";
 }
 
+@if (TempData["MensajeExito"] is string mensajeExito)
+{
+    <div class="container alert alert-success mt-4 mb-0" role="status">
+        @mensajeExito
+    </div>
+}
+
 <div class="container py-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
             <h1 class="h2 mb-1">Mis solicitudes</h1>
             <p class="text-muted mb-0">Consulta y filtra tus solicitudes de crédito.</p>
         </div>
+        <a asp-controller="Solicitudes" asp-action="Crear" class="btn btn-primary">Crear solicitud</a>
     </div>
 
     <section class="card mb-4" aria-labelledby="filtros-title">

@@ -18,6 +18,133 @@ public class SolicitudesController : Controller
     }
 
     [HttpGet]
+    public async Task<IActionResult> Crear()
+    {
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return Challenge();
+        }
+
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Forbid();
+        }
+
+        var modelo = new CrearSolicitudViewModel();
+        var cliente = await ObtenerClienteAsync(usuarioId);
+
+        if (cliente is null)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "No se encontró un cliente asociado con tu usuario.");
+            return View(modelo);
+        }
+
+        if (!cliente.Activo)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Tu cliente está inactivo y no puede crear solicitudes.");
+            return View(modelo);
+        }
+
+        CargarLimitePermitido(modelo, cliente);
+
+        if (await TieneSolicitudPendienteAsync(cliente.Id))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Ya tienes una solicitud en estado Pendiente y no puedes crear otra.");
+        }
+
+        return View(modelo);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Crear([Bind] CrearSolicitudViewModel? modelo)
+    {
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return Challenge();
+        }
+
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Forbid();
+        }
+
+        modelo ??= new CrearSolicitudViewModel();
+        var cliente = await ObtenerClienteAsync(usuarioId);
+
+        if (cliente is null)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "No se encontró un cliente asociado con tu usuario.");
+            return View(modelo);
+        }
+
+        if (!cliente.Activo)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Tu cliente está inactivo y no puede crear solicitudes.");
+            return View(modelo);
+        }
+
+        CargarLimitePermitido(modelo, cliente);
+        var tieneSolicitudPendiente = await TieneSolicitudPendienteAsync(cliente.Id);
+        if (tieneSolicitudPendiente)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Ya tienes una solicitud en estado Pendiente y no puedes crear otra.");
+        }
+
+        var limitePermitido = modelo.MontoMaximoPermitido!.Value;
+        if (modelo.MontoSolicitado.HasValue && modelo.MontoSolicitado.Value > limitePermitido)
+        {
+            ModelState.AddModelError(
+                nameof(CrearSolicitudViewModel.MontoSolicitado),
+                $"El monto solicitado no puede superar 10 veces tus ingresos mensuales (máximo: {limitePermitido:C}).");
+        }
+
+        if (!ModelState.IsValid || !TryValidateModel(modelo))
+        {
+            return View(modelo);
+        }
+
+        var solicitud = new SolicitudCredito
+        {
+            ClienteId = cliente.Id,
+            MontoSolicitado = modelo.MontoSolicitado!.Value,
+            FechaSolicitud = DateTime.UtcNow,
+            Estado = EstadoSolicitud.Pendiente
+        };
+
+        _context.SolicitudesCredito.Add(solicitud);
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "No fue posible registrar la solicitud. Inténtalo nuevamente.");
+            return View(modelo);
+        }
+
+        TempData["MensajeExito"] = "Tu solicitud de crédito fue registrada correctamente.";
+        return RedirectToAction(nameof(MisSolicitudes));
+    }
+
+    [HttpGet]
     public async Task<IActionResult> MisSolicitudes(
         [FromQuery] MisSolicitudesViewModel? filtros = null)
     {
@@ -108,5 +235,29 @@ public class SolicitudesController : Controller
             .FirstOrDefaultAsync(item => item.Id == id && item.Cliente!.UsuarioId == usuarioId);
 
         return solicitud is null ? NotFound() : View(solicitud);
+    }
+
+    private Task<Cliente?> ObtenerClienteAsync(string usuarioId)
+    {
+        return _context.Clientes
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cliente => cliente.UsuarioId == usuarioId);
+    }
+
+    private Task<bool> TieneSolicitudPendienteAsync(int clienteId)
+    {
+        return _context.SolicitudesCredito
+            .AsNoTracking()
+            .AnyAsync(solicitud =>
+                solicitud.ClienteId == clienteId &&
+                solicitud.Estado == EstadoSolicitud.Pendiente);
+    }
+
+    private static void CargarLimitePermitido(
+        CrearSolicitudViewModel modelo,
+        Cliente cliente)
+    {
+        modelo.IngresosMensuales = cliente.IngresosMensuales;
+        modelo.MontoMaximoPermitido = cliente.IngresosMensuales * 10m;
     }
 }
