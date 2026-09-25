@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using PlataformaCreditos.Data;
+using PlataformaCreditos.Infrastructure;
 using PlataformaCreditos.Models;
 
 namespace PlataformaCreditos.Controllers;
@@ -13,8 +14,7 @@ namespace PlataformaCreditos.Controllers;
 [Authorize]
 public class SolicitudesController : Controller
 {
-    private const string RolAnalista = "Analista";
-    private const string ListadoCacheVersionKey = "solicitudes:listado:version";
+    private const string ListadoCacheVersionKey = SolicitudesCacheKeys.ListadoVersion;
     private static readonly TimeSpan ListadoCacheExpiration = TimeSpan.FromSeconds(60);
 
     private readonly ApplicationDbContext _context;
@@ -284,61 +284,6 @@ public class SolicitudesController : Controller
             solicitud.MontoSolicitado.ToString("C"));
 
         return View(solicitud);
-    }
-
-    [HttpPost]
-    [Authorize(Roles = RolAnalista)]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CambiarEstado(
-        int id,
-        EstadoSolicitud estado,
-        string? motivoRechazo)
-    {
-        if (id <= 0)
-        {
-            return NotFound();
-        }
-
-        if (!Enum.IsDefined(typeof(EstadoSolicitud), estado))
-        {
-            ModelState.AddModelError(nameof(estado), "El estado seleccionado no es válido.");
-            return BadRequest(ModelState);
-        }
-
-        if (estado == EstadoSolicitud.Rechazado && string.IsNullOrWhiteSpace(motivoRechazo))
-        {
-            ModelState.AddModelError(
-                nameof(motivoRechazo),
-                "Debes indicar el motivo del rechazo.");
-        }
-
-        if (motivoRechazo?.Length > 500)
-        {
-            ModelState.AddModelError(
-                nameof(motivoRechazo),
-                "El motivo del rechazo no puede superar los 500 caracteres.");
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        var solicitud = await _context.SolicitudesCredito.FindAsync(id);
-        if (solicitud is null)
-        {
-            return NotFound();
-        }
-
-        solicitud.Estado = estado;
-        solicitud.MotivoRechazo = estado == EstadoSolicitud.Rechazado
-            ? motivoRechazo!.Trim()
-            : null;
-
-        await _context.SaveChangesAsync();
-        await InvalidarCacheListadoAsync();
-
-        return NoContent();
     }
 
     private Task<Cliente?> ObtenerClienteAsync(string usuarioId)
