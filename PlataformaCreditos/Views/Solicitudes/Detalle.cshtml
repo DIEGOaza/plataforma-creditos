@@ -26,7 +26,9 @@
         <a asp-controller="Solicitudes" asp-action="MisSolicitudes" class="btn btn-outline-secondary">Volver a mis solicitudes</a>
     </div>
 
-    <div class="row g-4">
+    <div class="alert alert-info d-none" data-solicitudes-live-status role="status" aria-live="polite"></div>
+
+    <div class="row g-4" data-solicitud-detalle-id="@Model.Id">
         <div class="col-lg-8">
             <section class="card h-100" aria-labelledby="datos-solicitud-title">
                 <div class="card-header">
@@ -47,10 +49,10 @@
                         <dd class="col-sm-8">@Model.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</dd>
 
                         <dt class="col-sm-4">Estado</dt>
-                        <dd class="col-sm-8"><span class="badge @estadoClase">@estadoTexto</span></dd>
+                        <dd class="col-sm-8"><span data-solicitud-estado class="badge @estadoClase">@estadoTexto</span></dd>
 
                         <dt class="col-sm-4">Motivo de rechazo</dt>
-                        <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.MotivoRechazo) ? "No aplica" : Model.MotivoRechazo)</dd>
+                        <dd class="col-sm-8" data-solicitud-motivo>@(string.IsNullOrWhiteSpace(Model.MotivoRechazo) ? "No aplica" : Model.MotivoRechazo)</dd>
                     </dl>
                 </div>
             </section>
