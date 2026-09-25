@@ -1,6 +1,33 @@
 # PlataformaCreditos
 
-Plataforma de solicitudes de crédito desarrollada con ASP.NET Core, SignalR, Redis y RabbitMQ/CloudAMQP.
+Plataforma de solicitudes de crédito desarrollada con ASP.NET Core 10, SQLite, Redis, SignalR y RabbitMQ/CloudAMQP.
+
+## Requisitos
+
+- .NET 10 SDK.
+- Docker Desktop para ejecutar Redis local en un contenedor.
+- Una instancia de Redis accesible para la caché y las sesiones.
+- Una cola RabbitMQ/CloudAMQP con soporte AMQPS para publicar `SolicitudRegistrada`.
+- Git y una cuenta de GitHub para desplegar desde Render.
+
+## Estructura del proyecto
+
+```text
+.
+├── Dockerfile
+├── .dockerignore
+├── PlataformaCreditos/
+│   ├── PlataformaCreditos.csproj
+│   ├── Program.cs
+│   ├── Controllers/
+│   ├── Data/
+│   ├── Hubs/
+│   ├── Messaging/
+│   ├── Models/
+│   ├── Views/
+│   └── wwwroot/
+└── docs/
+```
 
 ## Evidencias de Pruebas
 
