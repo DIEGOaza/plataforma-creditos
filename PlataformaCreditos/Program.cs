@@ -7,9 +7,9 @@ using PlataformaCreditos.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var redisConnectionString = builder.Configuration.GetConnectionString("Redis")
-    ?? builder.Configuration["Redis:ConnectionString"]
-    ?? "localhost:6379";
+// var redisConnectionString = builder.Configuration.GetConnectionString("Redis")
+//     ?? builder.Configuration["Redis:ConnectionString"]
+//     ?? "localhost:6379";
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -21,11 +21,13 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = redisConnectionString;
-    options.InstanceName = "PlataformaCreditos:";
-});
+// builder.Services.AddStackExchangeRedisCache(options =>
+// {
+//     options.Configuration = redisConnectionString;
+//     options.InstanceName = "PlataformaCreditos:";
+// });
+
+builder.Services.AddDistributedMemoryCache();
 
 builder.Services.AddSession(options =>
 {
@@ -37,16 +39,20 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddSignalR();
 
-var rabbitMqOptions = RabbitMqOptions.FromEnvironment();
+var rabbitMqOptions = RabbitMqOptions.FromConfiguration(builder.Configuration);
 builder.Services.AddSingleton(rabbitMqOptions);
 builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
 builder.Services.AddSingleton<ISolicitudNotificationPublisher, SolicitudNotificationPublisher>();
-builder.Services.AddHostedService<SolicitudesNotificationConsumer>();
+if (rabbitMqOptions.ConsumerEnabled)
+{
+    builder.Services.AddHostedService<SolicitudesNotificationConsumer>();
+}
 
 builder.Services.AddControllersWithViews();
 
 var app = builder.Build();
 
+// Inicializa la base de datos, aplica migraciones y carga los datos base.
 await DbInitializer.SeedAsync(app.Services);
 
 // Configure the HTTP request pipeline.
