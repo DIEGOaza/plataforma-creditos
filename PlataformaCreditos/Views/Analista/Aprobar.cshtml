@@ -1,0 +1,57 @@
+@model SolicitudCredito
+@{
+    ViewData["Title"] = "Aprobar solicitud";
+    var ingresos = Model.Cliente?.IngresosMensuales ?? 0m;
+    var limite = ingresos * 5m;
+}
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 mb-1">Aprobar solicitud #@Model.Id</h1>
+            <p class="text-muted mb-0">Confirma la aprobación de la solicitud.</p>
+        </div>
+        <a asp-controller="Analista" asp-action="Index" class="btn btn-outline-secondary">Volver al listado</a>
+    </div>
+
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <section class="card mb-4" aria-labelledby="datos-approbar-title">
+                <div class="card-header">
+                    <h2 id="datos-approbar-title" class="h5 mb-0">Datos de la solicitud</h2>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Fecha</dt>
+                        <dd class="col-sm-8">@Model.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</dd>
+
+                        <dt class="col-sm-4">Cliente</dt>
+                        <dd class="col-sm-8">@(Model.Cliente?.Usuario?.UserName ?? Model.Cliente?.UsuarioId ?? "No disponible")</dd>
+
+                        <dt class="col-sm-4">Ingresos mensuales</dt>
+                        <dd class="col-sm-8">@ingresos.ToString("C")</dd>
+
+                        <dt class="col-sm-4">Monto solicitado</dt>
+                        <dd class="col-sm-8">@Model.MontoSolicitado.ToString("C")</dd>
+
+                        <dt class="col-sm-4">Límite de aprobación (5×)</dt>
+                        <dd class="col-sm-8">@limite.ToString("C")</dd>
+                    </dl>
+                </div>
+            </section>
+
+            <div class="d-flex flex-wrap gap-2">
+                <form asp-controller="Analista" asp-action="Aprobar" asp-route-id="@Model.Id" method="post">
+                    <button type="submit" class="btn btn-success">Confirmar aprobación</button>
+                </form>
+                <a asp-controller="Analista" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

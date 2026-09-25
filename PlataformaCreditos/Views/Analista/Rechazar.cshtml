@@ -1,0 +1,66 @@
+@model RechazarSolicitudViewModel
+@{
+    ViewData["Title"] = "Rechazar solicitud";
+    var solicitud = Model.Solicitud;
+}
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 mb-1">Rechazar solicitud #@Model.SolicitudId</h1>
+            <p class="text-muted mb-0">Indica el motivo del rechazo.</p>
+        </div>
+        <a asp-controller="Analista" asp-action="Index" class="btn btn-outline-secondary">Volver al listado</a>
+    </div>
+
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            @if (solicitud is not null)
+            {
+                <section class="card mb-4" aria-labelledby="datos-rechazar-title">
+                    <div class="card-header">
+                        <h2 id="datos-rechazar-title" class="h5 mb-0">Resumen de la solicitud</h2>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Fecha</dt>
+                            <dd class="col-sm-8">@solicitud.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</dd>
+
+                            <dt class="col-sm-4">Cliente</dt>
+                            <dd class="col-sm-8">@(solicitud.Cliente?.Usuario?.UserName ?? solicitud.Cliente?.UsuarioId ?? "No disponible")</dd>
+
+                            <dt class="col-sm-4">Monto solicitado</dt>
+                            <dd class="col-sm-8">@solicitud.MontoSolicitado.ToString("C")</dd>
+                        </dl>
+                    </div>
+                </section>
+            }
+
+            <section class="card" aria-labelledby="motivo-rechazo-title">
+                <div class="card-header">
+                    <h2 id="motivo-rechazo-title" class="h5 mb-0">Motivo del rechazo</h2>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Analista" asp-action="Rechazar" asp-route-id="@Model.SolicitudId" method="post">
+                        <div class="mb-3">
+                            <label asp-for="MotivoRechazo" class="form-label"></label>
+                            <textarea asp-for="MotivoRechazo" class="form-control" rows="5" maxlength="500" required></textarea>
+                            <span asp-validation-for="MotivoRechazo" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-danger">Confirmar rechazo</button>
+                            <a asp-controller="Analista" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
