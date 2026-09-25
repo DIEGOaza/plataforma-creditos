@@ -1,0 +1,89 @@
+@model SolicitudCredito
+@{
+    ViewData["Title"] = $"Detalle de la solicitud #{Model.Id}";
+    var estadoTexto = Model.Estado switch
+    {
+        EstadoSolicitud.Pendiente => "Pendiente",
+        EstadoSolicitud.Aprobado => "Aprobada",
+        EstadoSolicitud.Rechazado => "Rechazada",
+        _ => Model.Estado.ToString()
+    };
+    var estadoClase = Model.Estado switch
+    {
+        EstadoSolicitud.Pendiente => "bg-warning text-dark",
+        EstadoSolicitud.Aprobado => "bg-success",
+        EstadoSolicitud.Rechazado => "bg-danger",
+        _ => "bg-secondary"
+    };
+}
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 mb-1">Detalle de la solicitud #@Model.Id</h1>
+            <p class="text-muted mb-0">Información completa de la solicitud.</p>
+        </div>
+        <a asp-controller="Solicitudes" asp-action="MisSolicitudes" class="btn btn-outline-secondary">Volver a mis solicitudes</a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <section class="card h-100" aria-labelledby="datos-solicitud-title">
+                <div class="card-header">
+                    <h2 id="datos-solicitud-title" class="h5 mb-0">Datos de la solicitud</h2>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Identificador</dt>
+                        <dd class="col-sm-8">@Model.Id</dd>
+
+                        <dt class="col-sm-4">Cliente asociado</dt>
+                        <dd class="col-sm-8">@Model.ClienteId</dd>
+
+                        <dt class="col-sm-4">Monto solicitado</dt>
+                        <dd class="col-sm-8">@Model.MontoSolicitado.ToString("C")</dd>
+
+                        <dt class="col-sm-4">Fecha de solicitud</dt>
+                        <dd class="col-sm-8">@Model.FechaSolicitud.ToString("dd/MM/yyyy HH:mm")</dd>
+
+                        <dt class="col-sm-4">Estado</dt>
+                        <dd class="col-sm-8"><span class="badge @estadoClase">@estadoTexto</span></dd>
+
+                        <dt class="col-sm-4">Motivo de rechazo</dt>
+                        <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.MotivoRechazo) ? "No aplica" : Model.MotivoRechazo)</dd>
+                    </dl>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-4">
+            <section class="card h-100" aria-labelledby="datos-cliente-title">
+                <div class="card-header">
+                    <h2 id="datos-cliente-title" class="h5 mb-0">Datos del cliente</h2>
+                </div>
+                <div class="card-body">
+                    @if (Model.Cliente is null)
+                    {
+                        <p class="text-muted mb-0">No hay información del cliente disponible.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Identificador</dt>
+                            <dd class="col-sm-7">@Model.Cliente.Id</dd>
+
+                            <dt class="col-sm-5">Usuario</dt>
+                            <dd class="col-sm-7">@(Model.Cliente.Usuario?.UserName ?? Model.Cliente.UsuarioId)</dd>
+
+                            <dt class="col-sm-5">Ingresos mensuales</dt>
+                            <dd class="col-sm-7">@Model.Cliente.IngresosMensuales.ToString("C")</dd>
+
+                            <dt class="col-sm-5">Activo</dt>
+                            <dd class="col-sm-7">@(Model.Cliente.Activo ? "Sí" : "No")</dd>
+                        </dl>
+                    }
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
