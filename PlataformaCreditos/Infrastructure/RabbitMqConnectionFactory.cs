@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -89,6 +90,15 @@ public sealed class RabbitMqConnectionFactory : IRabbitMqConnectionFactory
                 "No fue posible conectar con RabbitMQ/CloudAMQP. Se reintentará la conexión.");
             throw new RabbitMqRetryableException(
                 "No fue posible conectar con RabbitMQ/CloudAMQP.",
+                exception);
+        }
+        catch (SocketException exception)
+        {
+            _logger.LogError(
+                exception,
+                "No fue posible establecer el socket con RabbitMQ/CloudAMQP. Se reintentará la conexión.");
+            throw new RabbitMqRetryableException(
+                "No fue posible establecer el socket con RabbitMQ/CloudAMQP.",
                 exception);
         }
     }
