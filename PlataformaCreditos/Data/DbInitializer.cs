@@ -8,8 +8,8 @@ namespace PlataformaCreditos.Data;
 public static class DbInitializer
 {
     private const string NombreRolAnalista = "Analista";
-    private const string EmailAnalista = "analista@plataforma.com";
-    private const string PasswordAnalista = "Analista123!";
+    private const string EmailAnalista = "analista@banco.com";
+    private const string PasswordAnalista = "Password123!";
     private const string EmailCliente = "cliente@plataforma.com";
     private const string PasswordCliente = "Cliente123!";
 
@@ -119,6 +119,27 @@ public static class DbInitializer
 
             var resultado = await userManager.CreateAsync(usuario, password);
             EnsureSucceeded(resultado, $"crear el usuario {email}");
+        }
+
+        if (!usuario.EmailConfirmed)
+        {
+            usuario.EmailConfirmed = true;
+            var resultadoConfirmacion = await userManager.UpdateAsync(usuario);
+            EnsureSucceeded(
+                resultadoConfirmacion,
+                $"confirmar el correo de {email}");
+        }
+
+        if (!await userManager.CheckPasswordAsync(usuario, password))
+        {
+            var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
+            var resultadoRestablecimiento = await userManager.ResetPasswordAsync(
+                usuario,
+                token,
+                password);
+            EnsureSucceeded(
+                resultadoRestablecimiento,
+                $"restablecer la contraseña de {email}");
         }
 
         return usuario;
