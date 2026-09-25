@@ -1,0 +1,59 @@
+@model CrearSolicitudViewModel
+@{
+    ViewData["Title"] = "Crear solicitud";
+}
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 mb-1">Crear solicitud</h1>
+            <p class="text-muted mb-0">Registra una nueva solicitud de crédito.</p>
+        </div>
+        <a asp-controller="Solicitudes" asp-action="MisSolicitudes" class="btn btn-outline-secondary">Volver a mis solicitudes</a>
+    </div>
+
+    @if (TempData["MensajeExito"] is string mensajeExito)
+    {
+        <div class="alert alert-success" role="status">
+            @mensajeExito
+        </div>
+    }
+
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            @if (Model.MontoMaximoPermitido.HasValue)
+            {
+                <div class="alert alert-info" role="status">
+                    Tus ingresos mensuales son <strong>@Model.IngresosMensuales!.Value.ToString("C")</strong>.
+                    El monto máximo que puedes solicitar es <strong>@Model.MontoMaximoPermitido.Value.ToString("C")</strong>.
+                </div>
+            }
+
+            <section class="card" aria-labelledby="datos-solicitud-title">
+                <div class="card-header">
+                    <h2 id="datos-solicitud-title" class="h5 mb-0">Datos de la solicitud</h2>
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Solicitudes" asp-action="Crear" method="post">
+                        <div class="mb-3">
+                            <label asp-for="MontoSolicitado" class="form-label"></label>
+                            <input asp-for="MontoSolicitado" class="form-control" type="number" min="0.01" step="0.01" placeholder="0.00" autofocus />
+                            <span asp-validation-for="MontoSolicitado" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary">Registrar solicitud</button>
+                            <a asp-controller="Solicitudes" asp-action="MisSolicitudes" class="btn btn-outline-secondary">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
