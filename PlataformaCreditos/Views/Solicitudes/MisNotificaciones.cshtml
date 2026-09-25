@@ -1,0 +1,62 @@
+@model IReadOnlyList<Notificacion>
+@{
+    ViewData["Title"] = "Mis notificaciones";
+}
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 mb-1">Mis notificaciones</h1>
+            <p class="text-muted mb-0">Avisos relacionados con tus solicitudes.</p>
+        </div>
+        <a asp-controller="Solicitudes" asp-action="MisSolicitudes" class="btn btn-outline-secondary">Volver a mis solicitudes</a>
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <div class="alert alert-info" role="status">
+            No tienes notificaciones disponibles.
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Notificaciones recibidas</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Fecha</th>
+                            <th scope="col">Tipo</th>
+                            <th scope="col">Solicitud</th>
+                            <th scope="col">Mensaje</th>
+                            <th scope="col">Estado</th>
+                            <th scope="col"><span class="visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var notificacion in Model)
+                        {
+                            <tr>
+                                <td>@notificacion.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@notificacion.Tipo</td>
+                                <td>#@notificacion.SolicitudId</td>
+                                <td>@notificacion.Mensaje</td>
+                                <td>
+                                    <span class="badge @(notificacion.Leida ? "bg-success" : "bg-warning text-dark")">
+                                        @(notificacion.Leida ? "Leída" : "Pendiente")
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <a asp-controller="Solicitudes" asp-action="Detalle" asp-route-id="@notificacion.SolicitudId" class="btn btn-sm btn-outline-primary">Ver solicitud</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
