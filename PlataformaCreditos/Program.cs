@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PlataformaCreditos.Data;
 using PlataformaCreditos.Hubs;
+using PlataformaCreditos.Infrastructure;
+using PlataformaCreditos.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +36,12 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddSignalR();
+
+var rabbitMqOptions = RabbitMqOptions.FromEnvironment();
+builder.Services.AddSingleton(rabbitMqOptions);
+builder.Services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
+builder.Services.AddSingleton<ISolicitudNotificationPublisher, SolicitudNotificationPublisher>();
+builder.Services.AddHostedService<SolicitudesNotificationConsumer>();
 
 builder.Services.AddControllersWithViews();
 

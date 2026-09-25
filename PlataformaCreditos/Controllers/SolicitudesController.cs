@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using PlataformaCreditos.Data;
 using PlataformaCreditos.Infrastructure;
+using PlataformaCreditos.Messaging;
 using PlataformaCreditos.Models;
 
 namespace PlataformaCreditos.Controllers;
@@ -19,13 +20,19 @@ public class SolicitudesController : Controller
 
     private readonly ApplicationDbContext _context;
     private readonly IDistributedCache _cache;
+    private readonly ISolicitudNotificationPublisher _notificationPublisher;
+    private readonly ILogger<SolicitudesController> _logger;
 
     public SolicitudesController(
         ApplicationDbContext context,
-        IDistributedCache cache)
+        IDistributedCache cache,
+        ISolicitudNotificationPublisher notificationPublisher,
+        ILogger<SolicitudesController> logger)
     {
         _context = context;
         _cache = cache;
+        _notificationPublisher = notificationPublisher;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -152,6 +159,27 @@ public class SolicitudesController : Controller
         }
 
         await InvalidarCacheListadoAsync();
+
+        if (solicitud.Estado == EstadoSolicitud.Pendiente)
+        {
+            try
+            {
+                await _notificationPublisher.PublishAsync(
+                    solicitud,
+                    usuarioId,
+                    HttpContext.RequestAborted);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "La solicitud {SolicitudId} se guardó, pero no fue posible publicar su notificación.",
+                    solicitud.Id);
+                TempData["MensajeAdvertencia"] =
+                    "La solicitud se registró, pero la notificación en la cola no pudo publicarse.";
+            }
+        }
+
         TempData["MensajeExito"] = "Tu solicitud de crédito fue registrada correctamente.";
         return RedirectToAction(nameof(MisSolicitudes));
     }
@@ -250,6 +278,25 @@ public class SolicitudesController : Controller
             });
 
         return View(filtros);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> MisNotificaciones()
+    {
+        var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(usuarioId))
+        {
+            return Forbid();
+        }
+
+        var notificaciones = await _context.Notificaciones
+            .AsNoTracking()
+            .Where(notificacion => notificacion.UsuarioId == usuarioId)
+            .OrderByDescending(notificacion => notificacion.FechaCreacion)
+            .ThenByDescending(notificacion => notificacion.Id)
+            .ToListAsync();
+
+        return View(notificaciones);
     }
 
     [HttpGet]

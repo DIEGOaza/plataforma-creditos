@@ -10,6 +10,13 @@
     </div>
 }
 
+@if (TempData["MensajeAdvertencia"] is string mensajeAdvertencia)
+{
+    <div class="container alert alert-warning mt-4 mb-0" role="alert">
+        @mensajeAdvertencia
+    </div>
+}
+
 <div class="container alert alert-info d-none mt-4 mb-0" data-solicitudes-live-status role="status" aria-live="polite"></div>
 
 <div class="container py-4">
