@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using PlataformaCreditos.Data;
 using PlataformaCreditos.Models;
 
@@ -10,11 +13,19 @@ namespace PlataformaCreditos.Controllers;
 [Authorize]
 public class SolicitudesController : Controller
 {
-    private readonly ApplicationDbContext _context;
+    private const string RolAnalista = "Analista";
+    private const string ListadoCacheVersionKey = "solicitudes:listado:version";
+    private static readonly TimeSpan ListadoCacheExpiration = TimeSpan.FromSeconds(60);
 
-    public SolicitudesController(ApplicationDbContext context)
+    private readonly ApplicationDbContext _context;
+    private readonly IDistributedCache _cache;
+
+    public SolicitudesController(
+        ApplicationDbContext context,
+        IDistributedCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
     [HttpGet]
@@ -140,6 +151,7 @@ public class SolicitudesController : Controller
             return View(modelo);
         }
 
+        await InvalidarCacheListadoAsync();
         TempData["MensajeExito"] = "Tu solicitud de crédito fue registrada correctamente.";
         return RedirectToAction(nameof(MisSolicitudes));
     }
@@ -161,6 +173,24 @@ public class SolicitudesController : Controller
         if (string.IsNullOrWhiteSpace(usuarioId))
         {
             return Forbid();
+        }
+
+        var cacheVersion = await ObtenerVersionCacheListadoAsync();
+        var cacheKey = ConstruirClaveCacheListado(usuarioId, filtros, cacheVersion);
+        var listadoSerializado = await _cache.GetStringAsync(cacheKey);
+
+        if (listadoSerializado is not null)
+        {
+            try
+            {
+                filtros.Solicitudes = JsonSerializer.Deserialize<List<SolicitudCredito>>(listadoSerializado)
+                    ?? new List<SolicitudCredito>();
+                return View(filtros);
+            }
+            catch (JsonException)
+            {
+                // Si una entrada antigua o corrupta existe, se reemplaza al consultar la base de datos.
+            }
         }
 
         var consulta = _context.SolicitudesCredito
@@ -211,6 +241,14 @@ public class SolicitudesController : Controller
             .ThenByDescending(solicitud => solicitud.Id)
             .ToListAsync();
 
+        await _cache.SetStringAsync(
+            cacheKey,
+            JsonSerializer.Serialize(filtros.Solicitudes),
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = ListadoCacheExpiration
+            });
+
         return View(filtros);
     }
 
@@ -234,7 +272,73 @@ public class SolicitudesController : Controller
             .ThenInclude(cliente => cliente!.Usuario)
             .FirstOrDefaultAsync(item => item.Id == id && item.Cliente!.UsuarioId == usuarioId);
 
-        return solicitud is null ? NotFound() : View(solicitud);
+        if (solicitud is null)
+        {
+            return NotFound();
+        }
+
+        HttpContext.Session.SetInt32(SessionKeys.UltimaSolicitudId, solicitud.Id);
+        HttpContext.Session.SetString(SessionKeys.UltimaSolicitudUsuarioId, usuarioId);
+        HttpContext.Session.SetString(
+            SessionKeys.UltimaSolicitudMonto,
+            solicitud.MontoSolicitado.ToString("C"));
+
+        return View(solicitud);
+    }
+
+    [HttpPost]
+    [Authorize(Roles = RolAnalista)]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CambiarEstado(
+        int id,
+        EstadoSolicitud estado,
+        string? motivoRechazo)
+    {
+        if (id <= 0)
+        {
+            return NotFound();
+        }
+
+        if (!Enum.IsDefined(typeof(EstadoSolicitud), estado))
+        {
+            ModelState.AddModelError(nameof(estado), "El estado seleccionado no es válido.");
+            return BadRequest(ModelState);
+        }
+
+        if (estado == EstadoSolicitud.Rechazado && string.IsNullOrWhiteSpace(motivoRechazo))
+        {
+            ModelState.AddModelError(
+                nameof(motivoRechazo),
+                "Debes indicar el motivo del rechazo.");
+        }
+
+        if (motivoRechazo?.Length > 500)
+        {
+            ModelState.AddModelError(
+                nameof(motivoRechazo),
+                "El motivo del rechazo no puede superar los 500 caracteres.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var solicitud = await _context.SolicitudesCredito.FindAsync(id);
+        if (solicitud is null)
+        {
+            return NotFound();
+        }
+
+        solicitud.Estado = estado;
+        solicitud.MotivoRechazo = estado == EstadoSolicitud.Rechazado
+            ? motivoRechazo!.Trim()
+            : null;
+
+        await _context.SaveChangesAsync();
+        await InvalidarCacheListadoAsync();
+
+        return NoContent();
     }
 
     private Task<Cliente?> ObtenerClienteAsync(string usuarioId)
@@ -259,5 +363,34 @@ public class SolicitudesController : Controller
     {
         modelo.IngresosMensuales = cliente.IngresosMensuales;
         modelo.MontoMaximoPermitido = cliente.IngresosMensuales * 10m;
+    }
+
+    private async Task<string> ObtenerVersionCacheListadoAsync()
+    {
+        var version = await _cache.GetStringAsync(ListadoCacheVersionKey);
+        return string.IsNullOrWhiteSpace(version) ? "inicial" : version;
+    }
+
+    private async Task InvalidarCacheListadoAsync()
+    {
+        // La versión forma parte de todas las claves; cambiarla invalida
+        // simultáneamente los listados de todos los usuarios y filtros.
+        await _cache.SetStringAsync(
+            ListadoCacheVersionKey,
+            Guid.NewGuid().ToString("N"));
+    }
+
+    private static string ConstruirClaveCacheListado(
+        string usuarioId,
+        MisSolicitudesViewModel filtros,
+        string version)
+    {
+        var estado = filtros.Estado?.ToString() ?? "todos";
+        var montoMinimo = filtros.MontoMinimo?.ToString(CultureInfo.InvariantCulture) ?? "";
+        var montoMaximo = filtros.MontoMaximo?.ToString(CultureInfo.InvariantCulture) ?? "";
+        var fechaInicio = filtros.FechaInicio?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+        var fechaFin = filtros.FechaFin?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "";
+
+        return $"solicitudes:listado:{version}:usuario:{usuarioId}:estado:{estado}:min:{montoMinimo}:max:{montoMaximo}:desde:{fechaInicio}:hasta:{fechaFin}";
     }
 }

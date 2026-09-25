@@ -1,4 +1,19 @@
-﻿<!DOCTYPE html>
+﻿@using System.Security.Claims
+@using Microsoft.AspNetCore.Http
+@{
+    var usuarioAutenticado = User.Identity?.IsAuthenticated == true;
+    var usuarioId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var ultimaSolicitudId = usuarioAutenticado
+        ? Context.Session.GetInt32(SessionKeys.UltimaSolicitudId)
+        : null;
+    var ultimaSolicitudMonto = usuarioAutenticado
+        ? Context.Session.GetString(SessionKeys.UltimaSolicitudMonto)
+        : null;
+    var ultimaSolicitudUsuarioId = usuarioAutenticado
+        ? Context.Session.GetString(SessionKeys.UltimaSolicitudUsuarioId)
+        : null;
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -34,6 +49,17 @@
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-area="" asp-controller="Solicitudes" asp-action="Crear">Crear solicitud</a>
                             </li>
+                            @if (ultimaSolicitudId.HasValue &&
+                                !string.IsNullOrWhiteSpace(ultimaSolicitudMonto) &&
+                                !string.IsNullOrWhiteSpace(usuarioId) &&
+                                usuarioId == ultimaSolicitudUsuarioId)
+                            {
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" asp-area="" asp-controller="Solicitudes" asp-action="Detalle" asp-route-id="@ultimaSolicitudId">
+                                        Ver última solicitud @ultimaSolicitudMonto
+                                    </a>
+                                </li>
+                            }
                         }
                     </ul>
                     <partial name="_LoginPartial" />
